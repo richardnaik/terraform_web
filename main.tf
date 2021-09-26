@@ -21,8 +21,8 @@ module "web_vpc" {
   version = "3.7.0"
 
   cidr = "10.0.0.0/16"
-  azs = ["us-east-2b","us-east-2c"]
-  public_subnets = ["10.0.2.0/24","10.0.3.0/24"]
+  azs = ["us-east-2c"]
+  public_subnets = ["10.0.3.0/24"]
   enable_ipv6 = false
   enable_dns_support = true
   enable_dns_hostnames = true 
@@ -63,15 +63,27 @@ module "db_sg" {
   description = "database security group"
   vpc_id = module.web_vpc.vpc_id
 
-  ingress_cidr_blocks = ["10.0.2.0/24","10.0.3.0/24",var.admin_ip_range]
-  ingress_rules = ["mysql-tcp"]
+  ingress_with_cidr_blocks = [
+    {
+      rule = "ssh-tcp"
+      cidr_blocks = var.admin_ip_range
+    },
+    {
+      rule = "mysql-tcp"
+      cidr_blocks = var.admin_ip_range
+    },
+    {
+      rule = "mysql-tcp"
+      cidr_blocks = "10.0.3.0/24"
+    }
+  ]
   
-  egress_cidr_blocks = ["10.0.2.0/24","10.0.3.0/24",var.admin_ip_range]
-  egress_rules = ["mysql-tcp"]
+  egress_cidr_blocks = ["0.0.0.0/0"]
+  egress_rules = ["all-all"]
 }
 
-# lamp server, attach elastic IP and EBS volumes to it
-resource "aws_instance" "lamp_server" {
+# create servers, attach elastic IP and EBS volumes
+resource "aws_instance" "web_server" {
   ami = "ami-086586d173a744e81"
   instance_type = "t3.small"
   key_name = var.key_name
@@ -81,52 +93,67 @@ resource "aws_instance" "lamp_server" {
     delete_on_termination = "true"
   }
 
-  subnet_id = module.web_vpc.public_subnets[1]
+  subnet_id = module.web_vpc.public_subnets[0]
   vpc_security_group_ids = [module.web_sg.security_group_id]
 
   tags = {
-    Name = "lamp_server"
+    Name = "web_server"
   }
 }
 
-resource "aws_ebs_volume" "storage_volume" {
+resource "aws_instance" "db_server" {
+  ami = "ami-086586d173a744e81"
+  instance_type = "t3.medium"
+  key_name = var.key_name
+  root_block_device {
+    volume_size           = "20"
+    volume_type           = "gp3"
+    delete_on_termination = "true"
+  }
+
+  subnet_id = module.web_vpc.public_subnets[0]
+  vpc_security_group_ids = [module.db_sg.security_group_id]
+
+  tags = {
+    Name = "db_server"
+  }
+}
+
+resource "aws_ebs_volume" "web_storage_volume" {
   availability_zone = "us-east-2c"
-  size = 100
+  size = 80
   type = "gp3"
 
   tags = {
-    Name = "storage"
+    Name = "web_storage"
   }
 }
 
-resource "aws_volume_attachment" "storage_attachment" {
+resource "aws_volume_attachment" "web_storage_attachment" {
   device_name = "/dev/sdf"
-  volume_id   = aws_ebs_volume.storage_volume.id
-  instance_id = aws_instance.lamp_server.id
+  volume_id   = aws_ebs_volume.web_storage_volume.id
+  instance_id = aws_instance.web_server.id
+}
+
+resource "aws_ebs_volume" "db_storage_volume" {
+  availability_zone = "us-east-2c"
+  size = 40
+  type = "gp3"
+
+  tags = {
+    Name = "db_storage"
+  }
+}
+
+resource "aws_volume_attachment" "db_storage_attachment" {
+  device_name = "/dev/sdf"
+  volume_id   = aws_ebs_volume.db_storage_volume.id
+  instance_id = aws_instance.db_server.id
 }
 
 resource "aws_eip" "public_ip" {
   vpc = true
-  instance = aws_instance.lamp_server.id
-}
-
-# RDS instance and subnet
-resource "aws_db_subnet_group" "db_subnet" {
-  name = "db_subnet"
-  subnet_ids = module.web_vpc.public_subnets
-}
-
-resource "aws_db_instance" "db" {
-  allocated_storage = 20
-  engine = "mariadb"
-  instance_class = "db.t3.small"
-  db_subnet_group_name = aws_db_subnet_group.db_subnet.name
-  vpc_security_group_ids = [module.db_sg.security_group_id]
-  name = var.db_name
-  username = var.db_admin_user
-  password = var.db_password
-  skip_final_snapshot = true
-  publicly_accessible = true
+  instance = aws_instance.web_server.id
 }
 
 # DNS zone
