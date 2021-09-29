@@ -4,7 +4,7 @@ variable "domain_name" {
 }
 
 variable "key_name" {
-  description = "Primary domain name"
+  description = "Key pair for SSH into the EC2 instances"
   type        = string
 }
 

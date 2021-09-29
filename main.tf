@@ -2,11 +2,8 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 3.27"
     }
   }
-
-  required_version = ">= 0.14.9"
 }
 
 provider "aws" {
@@ -14,11 +11,10 @@ provider "aws" {
   region  = "us-east-2"
 }
 
-# VPC and security groups
+# VPC with one public subnet
 module "web_vpc" {
   name = "web_vpc"
   source  = "terraform-aws-modules/vpc/aws"
-  version = "3.7.0"
 
   cidr = "10.0.0.0/16"
   azs = ["us-east-2c"]
@@ -32,6 +28,7 @@ module "web_vpc" {
   }
 }
 
+# security group to allow web traffic globally and SSH to the admin IP range 
 module "web_sg" {
   source = "terraform-aws-modules/security-group/aws"
   name = "web_sg"
@@ -57,6 +54,7 @@ module "web_sg" {
   egress_rules = ["all-all"]
 }
 
+# security group to allow database traffic within the subnet plus SSH to the admin IP range 
 module "db_sg" {
   source = "terraform-aws-modules/security-group/aws"
   name = "db_sg"
@@ -82,7 +80,7 @@ module "db_sg" {
   egress_rules = ["all-all"]
 }
 
-# create servers, attach elastic IP and EBS volumes
+# web server
 resource "aws_instance" "web_server" {
   ami = "ami-086586d173a744e81"
   instance_type = "t3.small"
@@ -101,6 +99,7 @@ resource "aws_instance" "web_server" {
   }
 }
 
+# database server
 resource "aws_instance" "db_server" {
   ami = "ami-086586d173a744e81"
   instance_type = "t3.medium"
@@ -119,6 +118,7 @@ resource "aws_instance" "db_server" {
   }
 }
 
+# web storage volume and attachment
 resource "aws_ebs_volume" "web_storage_volume" {
   availability_zone = "us-east-2c"
   size = 100
@@ -135,6 +135,7 @@ resource "aws_volume_attachment" "web_storage_attachment" {
   instance_id = aws_instance.web_server.id
 }
 
+# database storage volume and attachment
 resource "aws_ebs_volume" "db_storage_volume" {
   availability_zone = "us-east-2c"
   size = 40
@@ -151,12 +152,13 @@ resource "aws_volume_attachment" "db_storage_attachment" {
   instance_id = aws_instance.db_server.id
 }
 
+# elastic IP for public use, attach to web server
 resource "aws_eip" "public_ip" {
   vpc = true
   instance = aws_instance.web_server.id
 }
 
-# DNS zone
+# DNS zone and A record for domain name
 resource "aws_route53_zone" "main" {
   name = var.domain_name
 }

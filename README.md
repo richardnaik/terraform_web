@@ -1,1 +1,1 @@
-Terraform for provisioning a lamp server, RDS instance and necessary networking on AWS.
+Terraform for provisioning a lamp setup in AWS.
