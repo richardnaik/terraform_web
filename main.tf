@@ -68,10 +68,6 @@ module "db_sg" {
     },
     {
       rule = "mysql-tcp"
-      cidr_blocks = var.admin_ip_range
-    },
-    {
-      rule = "mysql-tcp"
       cidr_blocks = "10.0.3.0/24"
     }
   ]
