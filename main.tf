@@ -117,7 +117,7 @@ resource "aws_instance" "db_server" {
 # web storage volume and attachment
 resource "aws_ebs_volume" "web_storage_volume" {
   availability_zone = "us-east-2c"
-  size = 100
+  size = 60
   type = "gp3"
 
   tags = {
@@ -134,7 +134,7 @@ resource "aws_volume_attachment" "web_storage_attachment" {
 # database storage volume and attachment
 resource "aws_ebs_volume" "db_storage_volume" {
   availability_zone = "us-east-2c"
-  size = 40
+  size = 20
   type = "gp3"
 
   tags = {
