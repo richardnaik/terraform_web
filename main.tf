@@ -79,7 +79,7 @@ module "db_sg" {
 # web server
 resource "aws_instance" "web_server" {
   ami = "ami-086586d173a744e81"
-  instance_type = "t3.small"
+  instance_type = "t3.medium"
   key_name = var.key_name
   root_block_device {
     volume_size           = "20"
@@ -117,7 +117,7 @@ resource "aws_instance" "db_server" {
 # web storage volume and attachment
 resource "aws_ebs_volume" "web_storage_volume" {
   availability_zone = "us-east-2c"
-  size = 60
+  size = 80
   type = "gp3"
 
   tags = {
@@ -165,4 +165,12 @@ resource "aws_route53_record" "domain_name" {
   type    = "A"
   ttl     = "300"
   records = [aws_eip.public_ip.public_ip]
+}
+
+resource "aws_route53_record" "cname" {
+  zone_id = aws_route53_zone.main.zone_id
+  name    = "www.${var.domain_name}"
+  type    = "CNAME"
+  ttl     = "300"
+  records = [var.domain_name]
 }
